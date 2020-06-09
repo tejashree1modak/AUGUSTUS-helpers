@@ -48,7 +48,7 @@ length(f) && $1 == "#" && NF == 2 {
 
 # after that Pick the gene line and the first two coding and protein lines
 # and write then out
-awk -v pfile=$3 -v cfile=$2 'BEGIN {
+awk -v pfile="$pfile" -v cfile="$cfile" 'BEGIN {
     pfile = !length(pfile) ? "protein.fasta" : pfile;
     printf "" > pfile
     cfile = !length(cfile) ? "coding.fasta" : cfile;
@@ -66,7 +66,10 @@ $1 == "coding" && c == 0 {
 }
 
 $1 == "protein" && p == 0 {
-    file = $1 ".fasta"
-    print  gene "\n" $NF >> pfile
-    p++;
+    if (c == 0) {
+        print "WARNING: Protein sequence with no coding sequence for", substr(gene,2), "ignoring.." > "/dev/stderr"
+    } else {
+        print  gene "\n" $NF >> pfile
+        p++;
+    }
 } ' preprocessed
