@@ -35,13 +35,16 @@ awk '/^# start gene g/ {
 }
 
 /^# (coding|protein) sequence/ {
-    f = $NF
-    t = $2
+    f = $NF                     # store the start of sequence
+    t = $2                      # t is either "coding" or "protein"
+    if ($NF ~ /\]$/) {          # for one line sequences, ] is on the same line, so print it out
+        print t, f; f = ""
+    }
 }
 
-length(f) && $1 == "#" && NF == 2 {
-    f = f $NF
-    if ($NF ~ /\]$/) {
+length(f) && $1 == "#" && NF == 2 {    # multiline sequences will continue appending to f
+    f = f $NF                          # first field is '#' second is sequence,
+    if ($NF ~ /\]$/) {                 # once we get to ']' thats the end of sequence, so print it out
         print t, f; f = ""
     }
 } ' $1  | tr -d '[]' > preprocessed
@@ -55,21 +58,33 @@ awk -v pfile="$pfile" -v cfile="$cfile" 'BEGIN {
     printf "" > cfile
 }
 
-NF == 1 {
+NF == 1 && /^>/ {
     gene = $1
     c = p = 0
+    total++
 }
 
-$1 == "coding" && c == 0 {
+$1 == "coding" && c == 0 && NF == 2 {
     print gene "\n" $NF >> cfile
-    c++;
+    c++; codings++;
 }
 
-$1 == "protein" && p == 0 {
+$1 == "protein" && p == 0 && NF == 2 {
+    print  gene "\n" $NF >> pfile
+    p++; proteins++;
+}
+
+$1 == "protein" && (c == 0 || p == 0) {
     if (c == 0) {
-        print "WARNING: Protein sequence with no coding sequence for", substr(gene,2), "ignoring.." > "/dev/stderr"
+        missing_codings++;
     } else {
-        print  gene "\n" $NF >> pfile
-        p++;
+        missing_proteins++;
     }
-} ' preprocessed
+    print "WARNING: Gene", substr(gene, 2), "has", c, "coding sequences and", p, "protein sequences"
+}
+
+END {
+    print "Statistics:\nTotal Genes:", total, "\nTotal Coding Sequences:", codings, "\nTotal Protein Sequences:", proteins, "\nEmpty Coding Sequences:", missing_codings, "\nEmpty Protein Sequences:", missing_proteins
+}' preprocessed
+
+echo "Total genes in $1: $(grep -c '^# start gene' $1)" 
